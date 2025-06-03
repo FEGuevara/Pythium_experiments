@@ -1,0 +1,849 @@
+```{r}
+# Load the packages (package startup messages are not printed below)
+library(ggnetwork)
+library(phyloseq)
+library(NetCoMi)
+library("tidyverse")
+library("microViz")
+library(indicspecies)
+```
+# Analysis 16S
+```{r}
+#Load final version phyloseq object
+ps.16S.Pythium <- readRDS('ps.16S.PythiumNC.rds') 
+
+#Extract taxa
+taxa_16S <- tax_table(ps.16S.Pythium)
+View(taxa_16S)
+
+#Sub-sett by experimental run
+ps.16S.PythiumR1 <- ps.16S.Pythium %>% ps_filter(run == "2")
+
+ps.16S.PythiumR2 <- ps.16S.Pythium %>% ps_filter(run == "3")
+
+# Check number of samples
+n_ps1 <- phyloseq::nsamples(ps.16S.PythiumR1) #has 27
+n_ps2 <- phyloseq::nsamples(ps.16S.PythiumR2) #has 27
+
+```
+
+
+# Run 1
+##Network construction
+```{r}
+# Get group names to parse onto network construction 
+group_vec <- get_variable(ps.16S.PythiumR1, "inoculation")
+
+# Construct the network 
+Pyth16S_net <- netConstruct(ps.16S.PythiumR1,
+                             group = group_vec,
+                             filtTax = "highestFreq",
+                             filtTaxPar = list(highestFreq = 75), 
+                             #filtSamp = "totalReads",
+                             #filtSampPar = list(totalReads = 500),
+                             zeroMethod = "pseudo",
+                             normMethod = "clr",
+                             measure = "sparcc",
+                             sparsMethod = "none",
+                             dissFunc = "signed",
+                             verbose = 0,
+                             seed = 123456)
+
+## change filtTaxPar 
+
+```
+
+```{r}
+#Network analysis
+Pythium16S_netA <- netAnalyze(Pyth16S_net,
+                               clustMethod = "cluster_fast_greedy",
+                               graphlet = FALSE,
+                               verbose = 0)
+
+summary(Pythium16S_netA)
+
+```
+##Visualization
+```{r}
+# Get number of modules to select colors 
+nclust <- as.numeric(max(names(table(Pythium16S_netA$clustering$clust1))))
+
+# Set color palette 
+col <- c(topo.colors(nclust), rainbow(6))
+
+# Plot network
+plot(Pythium16S_netA, 
+     colorVec = col,
+     borderCol = "gray40", 
+     nodeSize = "mclr", 
+     nodeSizeSpread = 3, 
+     labelScale = TRUE,
+     edgeTranspLow = 80, 
+     edgeTranspHigh = 50,
+     groupNames = c("Inoculated", "Not_inoculated"), 
+     showTitle = TRUE, 
+     cexTitle = 1.2,
+     mar = c(1,1,3,1), 
+     repulsion = 0.9, 
+     shortenLabels = "simple", 
+     rmSingles = "inboth",
+     nodeFilter = "clustMin", 
+     nodeFilterPar = 10, 
+     nodeTransp = 50, 
+     hubTransp = 30)
+
+## To add legent on top of the plot
+#legend(0.2, 0.2, cex = 1.7, title = "estimated correlation:",
+       #legend = c("+","-"), lty = 1, lwd = 3, col = c("#009900","red"),
+       #bty = "n", horiz = TRUE)
+
+```
+##Comparison Networks
+```{r}
+# Sub-setting our data by inoculation
+Inoc_subset <- phyloseq::subset_samples(ps.16S.PythiumR1, inoculation == "Inoculated")
+NotInoc_subset  <- phyloseq::subset_samples(ps.16S.PythiumR1, inoculation != "Inoculated")
+
+# Construct the differential network 
+diff_net_const <- netConstruct(Inoc_subset, NotInoc_subset,
+                               filtTax = "highestVar",
+                               filtTaxPar = list(highestVar = 75),
+                               zeroMethod = "pseudo",
+                               normMethod = "clr",
+                               measure = "sparcc", #pearson
+                               verbose = 1, 
+                               thresh = 0.3)
+
+## could modify filtTaxPar = list(highestVar = 75) 
+```
+```{r}
+# Analyze the network 
+diff_network <- netAnalyze(diff_net_const,
+                                 clustMethod = "cluster_fast_greedy",
+                                 #hubPar = c("degree", "betweenness", "closeness"),     
+                                 graphlet = FALSE,
+                                 #verbose = 0
+                          )
+
+summary(diff_network)
+```
+
+```{r}
+# Compare the analysis of the networks 
+comp_net <- netCompare(diff_network,
+                       nPerm = 1000,
+                       cores = 6,
+                       verbose = FALSE,
+                       seed = 12345)
+
+
+```
+
+```{r}
+summary(comp_net, 
+        groupNames = c("Not_inoculated", "Inoculated"),
+        showCentr = c("degree", "between", "closeness"), 
+        numbNodes = 7)
+```
+
+###Plot
+```{r}
+# Set color palette 
+library("RColorBrewer")
+colors <- (brewer.pal(n = 8, name = "Set2"))
+
+png("Network_16S_PythiumRun1.png", width = 3100, height = 2000, res = 300)  # Adjust resolution
+
+
+plot(diff_network, 
+     sameLayout = TRUE, 
+     layoutGroup = "union", 
+     colorVec = colors,
+     nodeColor = "cluster",
+     borderCol = "gray40", 
+     nodeSize = "mclr", 
+     nodeSizeSpread = 10, 
+     labelScale = TRUE,
+     edgeTranspLow = 80, 
+     edgeTranspHigh = 50,
+     groupNames = c("Inoculated\n\n\n", "Not inoculated\n\n\n"), 
+     showTitle = TRUE, 
+     cexTitle = 1.0,
+     mar = c(1,1,3,1), 
+     repulsion = 0.9, 
+     #shortenLabels = "simple", 
+     rmSingles = "inboth",
+     #nodeFilter = "clustMin", 
+     #nodeFilterPar = 10, 
+     nodeTransp = 50, 
+     highlightHubs = TRUE,
+     hubTransp = 20,
+     #cexLabels = 1.5,
+     #labelFont = 3, #2 stands for bold, 3 for italic
+     #hubLabelFont  = 2
+    )
+
+dev.off()
+
+```
+
+```{r}
+##Customized plot
+
+# Generate vector with phylum names for node coloring
+phyla <- as.factor(tax_table(ps.16S.Pythium)$phylum)
+names(phyla) <- rowData(ps.16S.Pythium)$genus
+
+# Create color vector
+colvec <- RColorBrewer::brewer.pal(length(levels(phyla)), "Set3")
+
+plot(netcomi_netprops,
+     repulsion = 0.98,
+     rmSingles = TRUE,
+     shortenLabels = "intelligent",
+     labelScale = FALSE,
+     nodeSize = "mclr",
+     nodeColor = "feature",
+     featVecCol = phyla,
+     colorVec =  colvec,
+     nodeTransp = 20,
+     highlightHubs = FALSE,
+     cexNodes = 1.8,
+     edgeTranspHigh = 20,
+     title1 = "Data features highlighted",
+     showTitle = TRUE,
+     cexTitle = 2.3,
+     mar = c(1, 10, 4, 6))
+
+# Add legends
+legend(0.7, 1.1, cex = 1.7, title = "estimated correlation:",
+       legend = c("+","-"), lty = 1, lwd = 3, col = c("#009900","red"),
+       bty = "n", horiz = TRUE)
+
+# Colors used in the legend should be equally transparent as in the plot
+col_transp <- colToTransp(colvec, 20)
+
+legend(-1.8, 1.1, cex = 1.7, pt.cex = 2.5, title = "Phylum:",
+       legend=levels(phyla), col = col_transp, bty = "n", pch = 16)
+```
+
+## Differential Network 
+```{r}
+diffNetworkBr1 <- diffnet(diff_net_const,
+                          diffMethod = "perm",
+                          adjust = "lfdr")
+```
+
+
+# Run 2
+##Network construction
+```{r}
+# Get group names to parse onto network construction 
+group_vec2 <- get_variable(ps.16S.PythiumR2, "inoculation")
+
+# Construct the network 
+Pyth16S_net2 <- netConstruct(ps.16S.PythiumR2,
+                             group = group_vec,
+                             filtTax = "highestFreq",
+                             filtTaxPar = list(highestFreq = 50), 
+                             filtSamp = "totalReads",
+                             filtSampPar = list(totalReads = 500),
+                             zeroMethod = "pseudo",
+                             normMethod = "clr",
+                             measure = "pearson",
+                             sparsMethod = "none",
+                             dissFunc = "signed",
+                             verbose = 0,
+                             seed = 123456)
+
+## change filtTaxPar 
+
+```
+
+```{r}
+#Network analysis
+Pythium16S_netA2 <- netAnalyze(Pyth16S_net2,
+                               clustMethod = "cluster_fast_greedy",
+                               graphlet = FALSE,
+                               verbose = 0)
+
+summary(Pythium16S_netA2)
+```
+##Visualization
+```{r}
+# Get number of modules to select colors 
+nclust2 <- as.numeric(max(names(table(Pythium16S_netA2$clustering$clust1))))
+
+# Set color palette 
+col2 <- c(topo.colors(nclust2), rainbow(6))
+
+# Plot network
+plot(Pythium16S_netA2, 
+     colorVec = col2,
+     borderCol = "gray40", 
+     nodeSize = "mclr", 
+     nodeSizeSpread = 3, 
+     labelScale = TRUE,
+     edgeTranspLow = 80, 
+     edgeTranspHigh = 50,
+     groupNames = c("Inoculated\n\n\n", "Not inoculated\n\n\n"), 
+     showTitle = TRUE, 
+     cexTitle = 1.2,
+     mar = c(1,1,3,1), 
+     repulsion = 0.9, 
+     shortenLabels = "simple", 
+     rmSingles = "inboth",
+     nodeFilter = "clustMin", 
+     nodeFilterPar = 10, 
+     nodeTransp = 50, 
+     hubTransp = 30)
+
+## To add legent on top of the plot
+#legend(0.2, 0.2, cex = 1.7, title = "estimated correlation:",
+       #legend = c("+","-"), lty = 1, lwd = 3, col = c("#009900","red"),
+       #bty = "n", horiz = TRUE)
+
+```
+##Comparison Networks
+```{r}
+# Sub-setting our data by inoculation
+Inoc_subset2 <- phyloseq::subset_samples(ps.16S.PythiumR2, inoculation == "Inoculated")
+NotInoc_subset2  <- phyloseq::subset_samples(ps.16S.PythiumR2, inoculation != "Inoculated")
+
+# Construct the differential network 
+diff_net_const2 <- netConstruct(Inoc_subset2, NotInoc_subset2,
+                               filtTax = "highestVar",
+                               filtTaxPar = list(highestVar = 75),
+                               zeroMethod = "pseudo",
+                               normMethod = "clr",
+                               measure = "sparcc",
+                               verbose = 1, 
+                               thresh = 0.3)
+
+## could modify filtTaxPar = list(highestVar = 75) 
+```
+```{r}
+# Analyze the network 
+diff_network2 <- netAnalyze(diff_net_const2,
+                                 clustMethod = "cluster_fast_greedy",
+                                 graphlet = FALSE,
+                                 verbose = 0)
+```
+
+```{r}
+# Compare the analysis of the networks 
+comp_net2 <- netCompare(diff_network2,
+                       nPerm = 1000,
+                       cores = 6,
+                       verbose = FALSE,
+                       seed = 12345)
+
+#Pythium16S_netA
+```
+
+```{r}
+summary(comp_net2, 
+        groupNames = c("Not_inoculated", "Inoculated"),
+        showCentr = c("degree", "between", "closeness"), 
+        numbNodes = 5)
+```
+
+###Plot
+```{r}
+# Set color palette 
+library("RColorBrewer")
+colors <- (brewer.pal(n = 8, name = "Set2"))
+
+png("Network_16S_PythiumRun2.png", width = 3100, height = 2000, res = 300)  # Adjust resolution
+
+plot(diff_network2, 
+     sameLayout = TRUE, 
+     layoutGroup = "union", 
+     colorVec = colors,
+     nodeColor = "cluster",
+     borderCol = "gray40", 
+     nodeSize = "mclr", 
+     nodeSizeSpread = 10, 
+     labelScale = TRUE,
+     edgeTranspLow = 80, 
+     edgeTranspHigh = 50,
+     groupNames = c("Inoculated\n\n\n", "Not inoculated\n\n\n"), 
+     showTitle = TRUE, 
+     cexTitle = 1.0,
+     mar = c(1,1,3,1), 
+     repulsion = 0.9, 
+     #shortenLabels = "simple", 
+     rmSingles = "inboth",
+     nodeFilter = "clustMin", 
+     nodeFilterPar = 10, 
+     nodeTransp = 50, 
+     hubTransp = 20)
+
+dev.off()
+
+```
+
+## Indicator species analysis (did not work!!)
+```{r}
+# Extract OTU table and sample metadata
+otu_table <- as.data.frame(otu_table(ps.16S.Pythium))
+metadata <- as(sample_data(ps.16S.Pythium), "data.frame")
+
+# Indicator species analysis for different groups
+indval_result <- multipatt(otu_table, metadata$inoculation, func = "r.g")
+
+# View significant indicator taxa
+summary(indval_result)
+```
+
+
+# Analysis ITS
+```{r}
+# Loading data from RDS
+ps.ITS.Pythium  <- readRDS('ps.ITS.PythiumNC.rds')
+
+#Extract taxa
+taxa_ITS <- tax_table(ps.ITS.Pythium)
+View(taxa_ITS)
+
+#Sub-sett by experimental run
+ps.ITS.PythiumR1 <- ps.ITS.Pythium %>% ps_filter(run == "2")
+
+ps.ITS.PythiumR2 <- ps.ITS.Pythium %>% ps_filter(run == "3")
+
+```
+# Run 1
+##Network construction
+```{r}
+# Get group names to parse onto network construction 
+group_vecF1 <- get_variable(ps.ITS.PythiumR1, "inoculation")
+
+# Construct the network 
+PythITS_netF1 <- netConstruct(ps.ITS.PythiumR1,
+                             group = group_vecF1,
+                             filtTax = "highestFreq",
+                             filtTaxPar = list(highestFreq = 50),
+                             filtSamp = "totalReads",
+                             filtSampPar = list(totalReads = 500),
+                             zeroMethod = "pseudo",
+                             normMethod = "clr",
+                             measure = "pearson",
+                             sparsMethod = "none",
+                             dissFunc = "signed",
+                             verbose = 0,
+                             seed = 123456)
+
+```
+
+```{r}
+#Network analysis
+PythiumITS_netA1 <- netAnalyze(PythITS_netF1,
+                               clustMethod = "cluster_fast_greedy",
+                               graphlet = FALSE,
+                               verbose = 0)
+
+summary(PythiumITS_netA1)
+```
+
+##Visualization
+```{r}
+# Get number of modules to select colors 
+nclustF1 <- as.numeric(max(names(table(PythiumITS_netA1$clustering$clust1))))
+
+# Set color palette 
+colF1 <- c(topo.colors(nclustF1), rainbow(6))
+
+# Plot network
+plot(PythiumITS_netA1, 
+     colorVec = colF1,
+     borderCol = "gray40", 
+     nodeSize = "mclr", 
+     nodeSizeSpread = 3, 
+     labelScale = TRUE,
+     edgeTranspLow = 80, 
+     edgeTranspHigh = 50,
+     groupNames = c("Inoculated\n\n\n", "Not inoculated\n\n\n"), 
+     showTitle = TRUE, 
+     cexTitle = 1.2,
+     mar = c(1,1,3,1), 
+     repulsion = 0.9, 
+     shortenLabels = "simple", 
+     rmSingles = "inboth",
+     nodeFilter = "clustMin", 
+     nodeFilterPar = 10, 
+     nodeTransp = 50, 
+     hubTransp = 30)
+
+## To add legent on top of the plot
+#legend(0.2, 0.2, cex = 1.7, title = "estimated correlation:",
+       #legend = c("+","-"), lty = 1, lwd = 3, col = c("#009900","red"),
+       #bty = "n", horiz = TRUE)
+
+```
+##Comparison Networks
+```{r}
+# Sub-setting our data by inoculation
+Inoc_subsetF1 <- phyloseq::subset_samples(ps.ITS.PythiumR1, inoculation == "Inoculated")
+NotInoc_subsetF1  <- phyloseq::subset_samples(ps.ITS.PythiumR1, inoculation != "Inoculated")
+
+# Construct the differential network 
+diff_net_constF1 <- netConstruct(Inoc_subsetF1, NotInoc_subsetF1,
+                               filtTax = "highestVar",
+                               filtTaxPar = list(highestVar = 75),
+                               zeroMethod = "pseudo",
+                               normMethod = "clr",
+                               measure = "sparcc",
+                               verbose = 1, 
+                               thresh = 0.3)
+
+## could modify filtTaxPar = list(highestVar = 75) 
+```
+```{r}
+# Analyze the network 
+diff_networkF1 <- netAnalyze(diff_net_constF1,
+                                 clustMethod = "cluster_fast_greedy",
+                                 graphlet = FALSE,
+                                 verbose = 0)
+```
+
+```{r}
+# Compare the analysis of the networks 
+comp_netF1 <- netCompare(diff_networkF1,
+                       nPerm = 1000,
+                       cores = 6,
+                       verbose = FALSE,
+                       seed = 12345)
+
+#Pythium16S_netA
+```
+
+```{r}
+summary(comp_netF1, 
+        groupNames = c("Not_inoculated", "Inoculated"),
+        showCentr = c("degree", "between", "closeness"), 
+        numbNodes = 5)
+```
+
+### Plot
+```{r}
+# Set color palette 
+library("RColorBrewer")
+colors <- (brewer.pal(n = 8, name = "Set2"))
+
+png("Network_ITS_PythiumRun1.png", width = 3100, height = 2000, res = 300)  # Adjust resolution
+
+plot(diff_networkF1, 
+     sameLayout = TRUE, 
+     layoutGroup = "union", 
+     colorVec = colors,
+     nodeColor = "cluster",
+     borderCol = "gray40", 
+     nodeSize = "mclr", 
+     nodeSizeSpread = 10, 
+     labelScale = TRUE,
+     edgeTranspLow = 80, 
+     edgeTranspHigh = 50,
+     groupNames = c("Inoculated\n\n\n", "Not inoculated\n\n\n"), 
+     showTitle = TRUE, 
+     cexTitle = 1.0,
+     mar = c(1,1,3,1), 
+     repulsion = 0.9, 
+     #shortenLabels = "simple", 
+     rmSingles = "inboth",
+     nodeFilter = "clustMin", 
+     nodeFilterPar = 10, 
+     nodeTransp = 50, 
+     hubTransp = 20)
+
+dev.off()
+
+```
+
+# Run 2
+##Network construction
+```{r}
+# Get group names to parse onto network construction 
+group_vecF2 <- get_variable(ps.ITS.PythiumR2, "inoculation")
+
+# Construct the network 
+PythITS_netF2 <- netConstruct(ps.ITS.PythiumR2,
+                             group = group_vecF2,
+                             filtTax = "highestFreq",
+                             filtTaxPar = list(highestFreq = 50),
+                             filtSamp = "totalReads",
+                             filtSampPar = list(totalReads = 500),
+                             zeroMethod = "pseudo",
+                             normMethod = "clr",
+                             measure = "pearson",
+                             sparsMethod = "none",
+                             dissFunc = "signed",
+                             verbose = 0,
+                             seed = 123456)
+
+```
+
+```{r}
+#Network analysis
+PythiumITS_netA2 <- netAnalyze(PythITS_netF2,
+                               clustMethod = "cluster_fast_greedy",
+                               graphlet = FALSE,
+                               verbose = 0)
+
+summary(PythiumITS_netA2)
+#summary.microNetprops(PythiumITS_netA2)
+```
+
+##Visualization
+```{r}
+# Get number of modules to select colors 
+nclustF2 <- as.numeric(max(names(table(PythiumITS_netA2$clustering$clust1))))
+
+# Set color palette 
+colF2 <- c(topo.colors(nclustF2), rainbow(6))
+
+# Plot network
+plot(PythiumITS_netA2, 
+     colorVec = colF2,
+     borderCol = "gray40", 
+     nodeSize = "mclr", 
+     nodeSizeSpread = 3, 
+     labelScale = TRUE,
+     edgeTranspLow = 80, 
+     edgeTranspHigh = 50,
+     groupNames = c("Inoculated\n\n\n", "Not inoculated\n\n\n"), 
+     showTitle = TRUE, 
+     cexTitle = 1.2,
+     mar = c(1,1,3,1), 
+     repulsion = 0.9, 
+     shortenLabels = "simple", 
+     rmSingles = "inboth",
+     nodeFilter = "clustMin", 
+     nodeFilterPar = 10, 
+     nodeTransp = 50, 
+     hubTransp = 30)
+
+## To add legent on top of the plot
+#legend(0.2, 0.2, cex = 1.7, title = "estimated correlation:",
+       #legend = c("+","-"), lty = 1, lwd = 3, col = c("#009900","red"),
+       #bty = "n", horiz = TRUE)
+
+```
+
+##Comparison Networks
+```{r}
+# Sub-setting our data by inoculation
+Inoc_subsetF2 <- phyloseq::subset_samples(ps.ITS.PythiumR2, inoculation == "Inoculated")
+NotInoc_subsetF2  <- phyloseq::subset_samples(ps.ITS.PythiumR2, inoculation != "Inoculated")
+
+# Construct the differential network 
+diff_net_constF2 <- netConstruct(Inoc_subsetF2, NotInoc_subsetF2,
+                               filtTax = "highestVar",
+                               filtTaxPar = list(highestVar = 75),
+                               zeroMethod = "pseudo",
+                               normMethod = "clr",
+                               measure = "sparcc",
+                               verbose = 1, 
+                               thresh = 0.3)
+
+## could modify filtTaxPar = list(highestVar = 75) 
+```
+```{r}
+# Analyze the network 
+diff_networkF2 <- netAnalyze(diff_net_constF2,
+                                 clustMethod = "cluster_fast_greedy",
+                                 graphlet = FALSE,
+                                 verbose = 0)
+```
+
+```{r}
+# Compare the analysis of the networks 
+comp_netF2 <- netCompare(diff_networkF2,
+                       nPerm = 1000,
+                       cores = 6,
+                       verbose = FALSE,
+                       seed = 12345)
+
+```
+
+```{r}
+summary(comp_netF2, 
+        groupNames = c("Not_inoculated", "Inoculated"),
+        showCentr = c("degree", "between", "closeness"), 
+        numbNodes = 5)
+```
+
+### Plot
+```{r}
+# Set color palette 
+library("RColorBrewer")
+colors <- (brewer.pal(n = 8, name = "Set2"))
+
+png("Network_ITS_PythiumRun2.png", width = 3100, height = 2000, res = 300)  # Adjust resolution
+
+plot(diff_networkF2, 
+     sameLayout = TRUE, 
+     layoutGroup = "union", 
+     colorVec = colors,
+     nodeColor = "cluster",
+     borderCol = "gray40", 
+     nodeSize = "mclr", 
+     nodeSizeSpread = 10, 
+     labelScale = TRUE,
+     edgeTranspLow = 80, 
+     edgeTranspHigh = 50,
+     groupNames = c("Inoculated\n\n\n", "Not inoculated\n\n\n"), 
+     showTitle = TRUE, 
+     cexTitle = 1.0,
+     mar = c(1,1,3,1), 
+     repulsion = 0.9, 
+     #shortenLabels = "simple", 
+     rmSingles = "inboth",
+     #nodeFilter = "clustMin", 
+     #nodeFilterPar = 20, 
+     nodeTransp = 50, 
+     hubTransp = 20)
+
+dev.off()
+
+```
+
+
+## Indicator species analysis
+```{r}
+# Convert OTU table to relative abundances
+phyloseq_rel <- transform_sample_counts(ps.ITS.Pythium, function(x) x / sum(x))
+
+
+sum(is.na(otu_table(phyloseq_rel))) # Check for NA values
+sum(is.nan(otu_table(phyloseq_rel))) # Check for NaN values
+
+# Extract OTU table and sample metadata
+otu_tableF <- as.data.frame(t(otu_table(phyloseq_rel)))
+metadataF <- as(sample_data(phyloseq_rel), "data.frame")
+
+# Check if sample names match (if FALSE then transpose otu table)
+all(rownames(otu_tableF) %in% rownames(metadataF))
+all(rownames(metadataF) %in% rownames(otu_tableF))
+
+# Indicator species analysis for different groups 
+## (func = "r.g" uses relative abundance, which prevents binary-only results)
+indval_resultF <- multipatt(otu_tableF, metadataF$inoculation, func = "r.g")
+
+# View significant indicator taxa
+summary(indval_resultF)
+
+# Extract indicator values and p-values
+indval_resultF2 <- indval_resultF$sign
+
+# Filter significant taxa
+sig_taxa <- indval_resultF2[indval_resultF2$p.value < 0.05, ]
+
+sig_taxa$maxcls <- ifelse(sig_taxa$s.Inoculated > sig_taxa$s.Not_inoculated, "Inoculated", "Non_inoculated")
+
+# Convert to a data frame for ggplot
+sig_taxa_df <- data.frame(Taxon = rownames(sig_taxa), Indicator_Value = sig_taxa$stat, inoculation = sig_taxa$maxcls)
+
+
+### TO CHECK WHY RESULTS GIVE ONLY 1s AND 0s (apparently some ASVs present in only one group: inoculated or non-inoculated)
+# Add group labels
+otu_tableF$inoculation <- metadataF$inoculation
+
+# Check presence of taxa across groups
+aggregate(. ~ inoculation, data = otu_tableF, FUN = function(x) sum(x > 0))
+
+
+## OTHER OPTION
+#"IndVal.g" gives a modified indicator species analysis that accounts for abundance.
+#It sometimes provides a more continuous range of values compared to "r.g".
+
+indval_result2 <- multipatt(otu_tableF, metadataF$inoculation, func = "IndVal.g")
+
+summary(indval_result2)
+
+indval_results2 <- indval_result2$sign
+
+
+
+
+```
+###plot
+```{r}
+# Perform PCA or RDA
+ord <- ordinate(ps.ITS.Pythium, method = "RDA", distance = "bray")
+
+# Plot with indicator taxa
+plot <- plot_ordination(ps.ITS.Pythium, ord, color = "inoculation") +
+  geom_point(size = 3) 
+
+#get data for geom text
+sig_taxa_df2 <- as.data.frame(scores(ord, display = "species"))
+sig_taxa_df2$Taxon <- rownames(sig_taxa_df2)
+sig_taxa_df2$Indicator_Value <- sig_taxa$stat
+sig_taxa_df2$inoculation <- sig_taxa$maxcls
+
+plot +
+  geom_text(data = sig_taxa_df, aes(x = PC1, y = PC2, label = Taxon), vjust = 1, hjust = 1) +
+  theme_minimal()
+
+
+###Heat map
+library(pheatmap)
+
+# Extract only the significant taxa from the original OTU table
+otu_sig <- otu_tableF[, colnames(as.matrix(otu_tableF)) %in% rownames(sig_taxa)]
+
+# Scale data for better visualization
+otu_scaled <- scale((otu_sig))
+
+# Create heatmap DID NOT WORK
+heatmap(otu_scaled, distfun = function(x) dist(x, method = "euclidean"), hclustfun = function(x) hclust(x, method = "ward.D2"))
+
+#Boxplot
+ggplot(sig_taxa, aes(x = reorder(rownames(sig_taxa), -stat), y = stat, fill = maxcls)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Indicator Species Analysis", x = "Taxa", y = "Indicator Value")
+
+
+```
+
+#Extract Olpidium sequences
+```{r}
+library(phyloseq)
+library(Biostrings)
+
+Olpidium.ITS <- ps.ITS.Pythium %>% subset_taxa(Genus == "Olpidium")
+
+taxa.Olpidium <- tax_table(Olpidium.ITS)
+
+df_taxa.Olpidium <- as.data.frame(taxa.Olpidium)
+
+# Extract ASV names and sequences 
+seqs.Olpidium <- Biostrings::DNAStringSet(as.vector(df_taxa.Olpidium$sequence)) 
+names(seqs.Olpidium) <- row.names(df_taxa.Olpidium) 
+
+#Write table
+Biostrings::writeXStringSet(seqs.Olpidium, filepath = "ASV_sequences_Olpidium.fasta", width = 1000)
+
+########## Extract Unclassified fungi #############
+library(microViz)
+fixed_taxa <- tax_fix(ps.ITS.Pythium)
+
+View(tax_table(fixed_taxa))
+
+Unclassified.ITS <- fixed_taxa %>% subset_taxa(Phylum == "Fungi Kingdom")
+
+taxa.Unclassified <- tax_table(Unclassified.ITS)
+
+df_taxa.Unclassified <- as.data.frame(taxa.Unclassified)
+
+# Extract ASV names and sequences 
+seqs.Unclassified <- Biostrings::DNAStringSet(as.vector(df_taxa.Unclassified$sequence)) 
+names(seqs.Unclassified) <- row.names(df_taxa.Unclassified) 
+
+#Write table
+Biostrings::writeXStringSet(seqs.Unclassified, filepath = "Seqs_Unclassified_Fungi_Pythium_data.fasta", width = 1000)
+
+
+```
+
