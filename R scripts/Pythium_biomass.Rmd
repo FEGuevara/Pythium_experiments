@@ -1,0 +1,819 @@
+---
+title: "Pythium_biomass"
+author: "Fiama Guevara"
+date: "2024-05-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#### Upload libraries
+library(readxl)
+library(ggplot2)
+library("lme4")
+library("car")
+library ("emmeans")
+library("tidyverse")
+library("tidyr")
+library(ggpubr)
+library(ggthemes)
+library(multcomp) #poshoc lmer
+library(ggbreak) #scale breaks
+library(patchwork) #multiplots
+library(ggpattern)
+```
+
+# Importing data
+```{r}
+#Import from Excel option used
+library(readxl)
+Pathogens_data <- read_excel("Pathogens_data.xlsx", 
+    sheet = "Pythium_Biomass")
+
+View(Pathogens_data)
+```
+
+# Mean biomass all groups
+```{r}
+#Mean by groups
+meansBiomass <- Pathogens_data %>%
+  group_by(Group, Treatment, sample) %>%
+  summarise_at(vars(c(Fresh_Biomass, Dry_Biomass)), list(name = mean, sd))
+
+View(meansBiomass)
+
+```
+
+# Analyses BIOMASS samples
+## Roots fresh weight
+```{r}
+#Sub-setting only Fresh weight roots
+data.Roots <- Pathogens_data %>% filter(Group == "BIOMASS", sample == "Roots")
+
+View(data.Roots)
+
+#Mix models - experiment run as random variable
+model.FWR <- lmer(Fresh_Biomass ~ Treatment + (1|Experiment_run), data = data.Roots)
+
+Anova(model.FWR) #Significant effect treatment p.value= 0.01896 *
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.FWR, which=1:6) 
+res <- resid(model.FWR)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #Normal p-value=0.3115
+
+# Poshoc
+emmeans(model.FWR, list(pairwise ~ Treatment), adjust = "tukey")
+#Significant diff between Control - Inoculated p-value=0.0218*
+
+emmeans(model.FWR, list(pairwise ~ Treatment), adjust = "bonferroni")
+
+```
+
+## Roots dry weight
+```{r}
+
+#Mix models - experiment run as random variable
+model.DWR <- lmer(Dry_Biomass ~ Treatment + (1|Experiment_run), data = data.Roots)
+
+Anova(model.DWR) #NO Significant effect treatment p.value= 0.4417
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.DWR, which=1:6) 
+resD <- resid(model.DWR)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(resD, breaks = 40)
+
+# QQ-plot
+qqPlot(resD,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(resD) #NOT Normal p-value= 0.03764
+
+# Poshoc
+emmeans(model.DWR, list(pairwise ~ Treatment), adjust = "tukey")
+#Significant diff between Control - Inoculated p-value=0.4443
+
+compare_means(Dry_Biomass ~ Treatment, data = data.Roots, method = "kruskal.test", group.by = "Experiment_run")  # Without grouping p.format=0.39 and by run2=0.311 - run3=0.018*
+
+```
+
+##Leaves fresh weight
+```{r}
+#Sub-setting only Fresh weight roots
+data.Leaves <- Pathogens_data %>% filter(Group == "BIOMASS", sample == "Leaves")
+
+View(data.Leaves)
+
+
+#Mix models - experiment run as random variable
+model.FWL <- lmer(Fresh_Biomass ~ Treatment + (1|Experiment_run), data = data.Leaves)
+
+Anova(model.FWL) #Significant effect treatment p.value= 0.007849 **
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.FWL, which=1:6) 
+resL <- resid(model.FWL)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(resL, breaks = 40)
+
+# QQ-plot
+qqPlot(resL,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(resL) #ALMOST Normal p-value= 0.04973 (one outlier)
+
+# Poshoc
+emmeans(model.FWL, list(pairwise ~ Treatment), adjust = "tukey")
+#Significant diff between Control - Inoculated p-value=0.0097**
+
+compare_means(Fresh_Biomass ~ Treatment, data = data.Leaves, method = "t.test", group.by = "Experiment_run")  # Without grouping p.format=0.01* and by run2=0.4429 - run3=0.0042*
+
+compare_means(Fresh_Biomass ~ Treatment, data = data.Leaves, method = "kruskal.test", group.by = "Experiment_run")  # Without grouping p.format=0.014* and by run2=0.376 - run3=0.012*
+
+```
+##Leaves dry weight
+```{r}
+
+#Mix models - experiment run as random variable
+model.DWL <- lmer(Dry_Biomass ~ Treatment + (1|Experiment_run), data = data.Leaves)
+
+Anova(model.DWL) #Significant effect treatment p.value= 0.04536 *
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.DWL, which=1:6) 
+resDL <- resid(model.DWL)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(resDL, breaks = 40)
+
+# QQ-plot
+qqPlot(resDL,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(resDL) #NOT Normal p-value= 0.002365
+
+# Poshoc
+emmeans(model.DWL, list(pairwise ~ Treatment))
+#Significant diff between Control - Inoculated p-value=0.0493
+
+#Non-parametric test
+compare_means(Dry_Biomass ~ Treatment, data = data.Leaves, method = "kruskal.test", group.by = "Experiment_run")  # Without grouping p.format=0.022* and by run2=0.547 - run3=0.0056*
+
+
+# Conduct pairwise comparisons with Wilcoxon rank-sum test
+pairwise_result2 <- pairwise.wilcox.test(data.Leaves$Fresh_Biomass, data.Leaves$Treatment, p.adjust.method = "bonferroni")
+print(pairwise_result2) #p-value=0.014
+
+```
+
+## Combined boxplot Biomass
+```{r}
+#Sub-setting only BIOMASS
+data.Biomass <- Pathogens_data %>% filter(Group == "BIOMASS")
+
+# Final plot Fresh Biomass
+combined.plot <- ggplot(data.Biomass, aes(x = sample, y = Fresh_Biomass, fill = Treatment)) + 
+  geom_boxplot() +
+  scale_fill_manual(name = "Pythium inoculation", values = c("#1F78B4", "orchid")) +
+  labs(x = "\nSample type", y = "\nFresh biomass (g)\n") +
+      theme_bw() +
+  scale_y_cut(breaks=37, scales=c(0, 5))
+
+
+# Save plot
+ggsave("Fresh_Biomass_Pythium.png", combined.plot, 
+  width = 11,
+  height = 12,
+  units = "cm",
+  dpi = 600)
+
+```
+
+```{r}
+
+# Final plot Dry Biomass
+combined.plotD <- ggplot(data.Biomass, aes(x = sample, y = Dry_Biomass, fill = Treatment)) + 
+  geom_boxplot() +
+  scale_fill_manual(name = "Pythium inoculation", values = c("#1F78B4", "orchid")) +
+  labs(x = "\nSample type", y = "\nDry biomass (g)\n") +
+      theme_bw() + 
+        scale_y_cut(breaks=3, scales=c(0, 0.5)) 
+
+
+# Save plot
+ggsave("Dry_Biomass_Pythium.png", combined.plotD, 
+  width = 11,
+  height = 12,
+  units = "cm",
+  dpi = 600)
+
+```
+
+# Analyses DNA samples
+```{r}
+meansBiomass2 <- Pathogens_data %>% filter(Group == "DNA") %>%
+  group_by(Visual_dis_severity, sample) %>%
+  summarise_at(vars(c(Fresh_Biomass, Dry_Biomass)), list(name = mean, sd))
+
+View(meansBiomass2)
+```
+
+## Fresh Roots
+```{r}
+##### Fresh weight roots #####
+data.DNAr <- Pathogens_data %>% filter(Group == "DNA", sample == "Roots")
+
+View(data.DNAr)
+
+#Mix model
+model.FWR23 <- lmer(Fresh_Biomass ~ Visual_dis_severity + (1|Experiment_run), data = data.DNAr)
+
+Anova(model.FWR23) #Significant effect of Disease severity p-value=1.239e-07 ***
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.FWR23, which=1:6) 
+res <- resid(model.FWR23)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = TRUE
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #NOT Normal  p-value = 0.001273
+
+#Perform the test
+# Pairwise comparisons
+mSev <- emmeans(model.FWR23, "Visual_dis_severity", )
+pairs(mSev) #significant effect disease severity
+
+multcomp::cld(object = mSev, Letters = letters)
+###Visual_dis_severity emmean   SE   df lower.CL upper.CL .group
+ #High                  16.2 3.18 1.13   -14.58     46.9  a    
+ #Control               21.2 3.11 1.04   -14.70     57.1   b   
+ #Low                   23.0 3.18 1.13    -7.74     53.8   b
+
+# Poshoc
+emmeans(model.FWR23, list(pairwise ~ Visual_dis_severity), adjust= "bonferroni")
+#Significant diff between Control - high p-value=0.0001
+
+#Non-parametric test
+compare_means(Fresh_Biomass ~ Visual_dis_severity, data = data.DNAr, method = "kruskal.test") ## Without grouping p.format=
+
+compare_means(Fresh_Biomass ~ Visual_dis_severity, data = data.DNAr, method = "kruskal.test", group.by = "Experiment_run")  # by run2=0.0017** - run3=0.0252*
+
+# Conduct pairwise comparisons with Wilcoxon rank-sum test
+pairwise_result <- pairwise.wilcox.test(data.DNAr$Fresh_Biomass, data.DNAr$Visual_dis_severity, p.adjust.method = "bonferroni")
+print(pairwise_result)
+
+
+```
+
+
+
+## Fresh Leaves
+```{r}
+##### Fresh weight roots #####
+data.DNAl <- Pathogens_data %>% filter(Group == "DNA", sample == "Leaves")
+
+model.FWLt <- lmer(Fresh_Biomass ~ Treatment + (1|Experiment_run), data = data.DNAl)
+Anova(model.FWLt) #Sigificant effect treatment p-value=0.01256 *
+
+model.FWL23 <- lmer(Fresh_Biomass ~ Visual_dis_severity + (1|Experiment_run), data = data.DNAl)
+
+Anova(model.FWL23) #Significant effect of Disease severity p-value=< 2.2e-16 ***
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.FWL23, which=1:6) 
+res <- resid(model.FWL23)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = TRUE
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #Normal p-value = 0.7079
+
+#Perform the test
+# Pairwise comparisons
+mSev <- emmeans(model.FWL23, "Visual_dis_severity")
+pairs(mSev) #significant differences between high-low and high-control
+multcomp::cld(object = mSev, Letters = letters)
+
+#Visual_dis_severity emmean   SE   df lower.CL upper.CL .group
+ #High                  77.5 13.0 1.49    -1.12      156  a    
+ #Control              136.3 12.2 1.15    22.65      250   b   
+ #Low                  150.6 13.0 1.49    71.95      229   b 
+
+```
+
+
+## Combined boxplot DNA FWR&FWL
+```{r}
+#Sub-setting only BIOMASS
+data.DNA <- Pathogens_data %>% filter(Group == "DNA")
+
+### Dataset imported from Excel 
+#To reorder the factor  
+data.DNA$Visual_dis_severity <- ordered(data.DNA$Visual_dis_severity, levels = c("Low", "Control", "High"))
+
+
+# Final plot 
+combined.plot.DNA <- ggplot(data.DNA, aes(x = Visual_dis_severity, y = Fresh_Biomass, fill = Visual_dis_severity)) + 
+  geom_boxplot() +
+  scale_fill_manual(name = "Disease severity", values = c("palegreen1", "#1F78B4", "hotpink1")) +
+      labs(x= "\nDisease severity", y = "\nFresh biomass (g)\n", title= "Samples for DNA extraction") +
+  facet_grid(~sample) + theme_classic() +
+    theme(legend.position = "none") + 
+      scale_y_cut(breaks=37, scales=c(0, 5))
+
+#outlier.shape = NA
+
+# Save plot
+ggsave("FWR_FWL.png", combined.plot.DNA, 
+  width = 11,
+  height = 12,
+  units = "cm",
+  dpi = 600)
+
+```
+
+
+## Analysis Root length run 2&3 (NOT UPDTAED)
+```{r}
+library(readxl)
+Pathogens_data <- read_excel("Pathogens_data.xlsx", 
+    sheet = "Pythium_all")
+View(Pathogens_data)
+```
+
+```{r}
+
+##### Fresh weight roots #####
+data.RL <- Pathogens_data %>% filter(Group == "DNA", Experiment_run != "Run1")
+
+model.RL23 <- lmer(Root_length ~ Visual_dis_severity + (1|Experiment_run), data = data.RL)
+
+Anova(model.RL23) #Significant effect of Disease severity p-value=0.02457 *
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.RL23, which=1:6) 
+res <- resid(model.RL23)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = TRUE
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #Normal   p-value = 0.7118
+
+#Perform the test
+# Pairwise comparisons
+mSev <- emmeans(model.RL23, "Visual_dis_severity")
+pairs(mSev) #significant differences between high-low
+multcomp::cld(object = mSev, Letters = letters)
+
+emmeans(model.RL23, list(pairwise ~ Visual_dis_severity), adjust = "tukey")
+
+```
+### Box plot run2&3
+```{r}
+#To reorder the factor  
+data.RL$Visual_dis_severity <- ordered(data.RL$Visual_dis_severity, levels = c("Low", "Control", "High"))
+
+# Box plot 
+ColorsBP <- c("palegreen1", "#1F78B4", "hotpink1")
+
+RL23.plot <- ggboxplot(data.RL, x = "Visual_dis_severity", y = "Root_length",
+          fill = "Visual_dis_severity", palette = ColorsBP, outlier.shape = NA) +
+      labs(x = "\nDisease severity", y = "Root length (cm)") +
+        ylim(25, 100) +
+  theme(legend.position = "none") 
+
+# Save plot
+ggsave("RL_DNAsamples.png", RL23.plot, 
+  width = 11,
+  height = 12,
+  units = "cm",
+  dpi = 600)
+
+```
+
+
+#Analysis Run 1 only
+## Roots FW run 1
+```{r}
+##### Fresh weight roots #####
+DNA_Rsamples1 <- Pathogens_data %>% filter(Group == "DNA", Experiment_run == "Run1")
+
+model.FWR1 <- lmer(Roots_fresh_weight ~ Visual_dis_severity + pH + EC + (1|Pond), data = DNA_Rsamples1)
+
+Anova(model.FWR1) #No Significant effects
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.FWR1, which=1:6) 
+res <- resid(model.FWR1)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #Not normal  
+
+#Perform the test
+compare_means(Roots_fresh_weight ~ Visual_dis_severity, data = DNA_Rsamples1, method = "kruskal.test")  #group.by = "Run"
+
+```
+### Box plot run1
+```{r}
+#To reorder the factor  
+DNA_Rsamples1$Visual_dis_severity <- ordered(DNA_Rsamples1$Visual_dis_severity, levels = c("Low", "Control", "High"))
+
+# Box plot 
+FWR1.plot <- ggboxplot(DNA_Rsamples1, x = "Visual_dis_severity", y = "Roots_fresh_weight",
+          fill = "Visual_dis_severity", palette = "lancet") +
+      labs(x = "\nDisease severity", y = "Roots fresh weight (g)") +
+        ylim(15, 50) +
+  theme(legend.position = "none")
+
+
+# Use only p.format as label. Remove method name.
+FWR1.plot + stat_compare_means(label = "p.format", method = "kruskal.test", label.y = 48) +
+  stat_compare_means(label = "p.signif", method = "wilcox.test", ref.group = "Control", label.y = 42) 
+
+
+```
+
+## Roots FW run 2
+```{r}
+##### Fresh weight roots #####
+DNA_Rsamples2 <- Pathogens_data %>% filter(Group == "DNA", Experiment_run == "Run2")
+
+model.FWR2 <- lmer(Roots_fresh_weight ~ Visual_dis_severity + Temperature + pH + EC + (1|Pond), data = DNA_Rsamples2)
+
+Anova(model.FWR2) #Significant effect of Disease
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.FWR2, which=1:6) 
+res <- resid(model.FWR2)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #Not normal  
+
+#Perform the test
+compare_means(Roots_fresh_weight ~ Visual_dis_severity, data = DNA_Rsamples2, method = "kruskal.test")  #group.by = "Run"
+
+```
+### Box plot run2
+```{r}
+#To reorder the factor  
+DNA_Rsamples2$Visual_dis_severity <- ordered(DNA_Rsamples2$Visual_dis_severity, levels = c("Low", "Control", "High"))
+
+# Box plot 
+FWR2.plot <- ggboxplot(DNA_Rsamples2, x = "Visual_dis_severity", y = "Roots_fresh_weight",
+          fill = "Visual_dis_severity", palette = "lancet") +
+      labs(x = "\nDisease severity", y = "Roots fresh weight (g)") +
+        ylim(10, 50) +
+  theme(legend.position = "none")
+
+
+# Use only p.format as label. Remove method name.
+FWR2.plot + stat_compare_means(label = "p.format", method = "kruskal.test", label.y = 48) +
+  stat_compare_means(label = "p.signif", method = "wilcox.test", ref.group = "Control", label.y = 42) 
+
+
+```
+## Roots FW run 3
+```{r}
+##### Fresh weight roots #####
+DNA_Rsamples3 <- Pathogens_data %>% filter(Group == "DNA", Experiment_run == "Run3")
+
+model.FWR3 <- lmer(Roots_fresh_weight ~ Visual_dis_severity + Temperature + pH + EC + (1|Pond), data = DNA_Rsamples3)
+
+Anova(model.FWR3) #Significant effect of Disease
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.FWR3, which=1:6) 
+res <- resid(model.FWR3)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #Normal  
+
+#Perform the test
+# Poshoc
+emmeans(model.FWR3, "Visual_dis_severity")
+
+
+compare_means(Roots_fresh_weight ~ Visual_dis_severity, data = DNA_Rsamples3, method = "t.test")  #group.by = "Run"
+
+```
+
+### Box plot run3
+```{r}
+#To reorder the factor  
+DNA_Rsamples3$Visual_dis_severity <- ordered(DNA_Rsamples3$Visual_dis_severity, levels = c("Low", "Control", "High"))
+
+# Box plot 
+FWR3.plot <- ggboxplot(DNA_Rsamples3, x = "Visual_dis_severity", y = "Roots_fresh_weight",
+          fill = "Visual_dis_severity", palette = "lancet", outlier.shape = NA) +
+      labs(x = "\nDisease severity", y = "Roots fresh weight (g)") +
+        ylim(5, 30) +
+  theme(legend.position = "none") 
+
+
+```
+
+```{r}
+# Get all plots in one figure
+final.FWRs_DNA <- ggarrange(FWR1.plot, FWR2.plot, FWR3.plot,
+                ncol = 3,  align = "hv")
+
+# Save plot
+ggsave("FWR_DNArun2.png", final.FWRs_DNA, 
+  width = 12,
+  height = 11,
+  units = "cm",
+  dpi = 600)
+```
+
+#qPCR results
+```{r}
+#Import data
+library(readxl)
+
+qPCR_data <- read_excel("C:/Users/fiama/OneDrive - The Ohio State University/Hydroponics_Project/Greenhouse_experiments/pathogens_experiments/Pythium/qPCR/qPCR_Pythium_experiments_final.xlsx", 
+    sheet = "Sheet1")
+
+View(qPCR_data)
+```
+
+```{r}
+#Change format numeric values
+library(gt)
+qPCR_data |>
+  fmt_scientific(
+    columns = Starting_Quantity,
+    exp_style = "E")
+```
+
+
+## Starting qualtity
+```{r}
+#Test model 
+model.qPCR <- lm(Starting_Quantity ~ Treatment * Exp_run * Replicate, data = qPCR_data) 
+
+Anova(model.qPCR) #Significant effect interaction Treatment:Exp_run p.value= 0.008430 **
+```
+
+
+```{r}
+##Analysis by run
+#RUN 1
+data_R1 <- qPCR_data %>% filter(Exp_run == "Run1")
+
+#Model
+model.qPCRr1 <- lmer(Starting_Quantity ~ Treatment * (1|Replicate), data = data_R1) 
+Anova(model.qPCRr1) #Sig effect treatment p-value=0.0000001938 ***
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.qPCRr1, which=1:6) 
+res <- resid(model.qPCRr1)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #NOT Normal p-value=0.000004838
+
+# Poshoc
+emmeans(model.qPCRr1, list(pairwise ~ Treatment), adjust = "tukey")
+#Significant diff between all
+
+emmeans(model.FWR, list(pairwise ~ Treatment), adjust = "bonferroni")
+
+```
+
+
+```{r}
+##Analysis by run
+#RUN 2
+data_R2 <- qPCR_data %>% filter(Exp_run == "Run2")
+
+#Model
+model.qPCRr2 <- lmer(Starting_Quantity ~ Treatment * (1|Replicate), data = data_R2) 
+Anova(model.qPCRr2) #Sig effect treatment p-value=0.0481 *
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.qPCRr2, which=1:6) 
+res <- resid(model.qPCRr2)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = FALSE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #NOT Normal p-value=5.938e-14
+
+# Poshoc
+emmeans(model.qPCRr2, list(pairwise ~ Treatment), adjust = "tukey")
+#NO Significant diff between any
+
+
+```
+
+##Plot
+```{r}
+#Label x- axis scale
+library(scales)
+scientific <- function(x){
+    ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e", " %*% 10^", scientific_format()(x)))))
+}
+
+
+plotR1 <- ggplot(qPCR_data, aes(x = Exp_run, y = Starting_Quantity, fill = Treatment)) + 
+  geom_boxplot() +
+  scale_fill_manual(name = "Disease severity", values = c("#1F78B4", "orchid", "green4")) +
+  labs(x = "\nExperimental run", y = "\nStarting quantity (ng/uL)\n") +
+      theme_bw() +
+  scale_y_continuous(label=scientific)
+
+
+# Save plot
+ggsave("qPCR_plot_StartinQuantity.png", plotR1, 
+  width = 11,
+  height = 12,
+  units = "cm",
+  dpi = 600)
+
+```
+
+## Cq
+A lower Cq value indicates a higher amount of genetic material in a sample. 
+```{r}
+#Test model 
+model.qPCR2 <- lm(Cq ~ Treatment * Exp_run * Replicate, data = qPCR_data) 
+
+Anova(model.qPCR2) #Significant effect interaction Treatment:Exp_run p.value= 0.0000067017260
+```
+
+
+```{r}
+##Analysis by run
+#RUN 1
+data_R1 <- qPCR_data %>% filter(Exp_run == "Run1")
+
+#Model
+model.qPCRr1c <- lmer(Cq ~ Treatment * (1|Replicate), data = data_R1) 
+Anova(model.qPCRr1c) #Sig effect treatment p-value=0.000000006717 ***
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.qPCRr1c, which=1:6) 
+res <- resid(model.qPCRr1c)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = TRUE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #NOT Normal p-value=0.00000052
+
+# Poshoc
+emmeans(model.qPCRr1c, list(pairwise ~ Treatment), adjust = "tukey")
+#Significant diff between control-low and control-high
+
+
+```
+
+```{r}
+##Analysis by run
+#RUN 2
+data_R2 <- qPCR_data %>% filter(Exp_run == "Run1")
+
+#Model
+model.qPCRr2c <- lmer(Cq ~ Treatment * (1|Replicate), data = data_R2) 
+Anova(model.qPCRr2c) #NO Sig effect treatment p-value=0.125
+
+#Residuals plots
+par(mfrow = c(2, 3))
+plot(model.qPCRr2c, which=1:6) 
+res <- resid(model.qPCRr2c)
+
+par(mfrow = c(1, 2)) # combine plots
+hist(res, breaks = 40)
+
+# QQ-plot
+qqPlot(res,
+       id = TRUE # id = FALSE to remove point identification
+      )
+
+# Normality test (normal if p>0.05)
+shapiro.test(res) #Normal p-value=0.2376
+
+# Poshoc
+emmeans(model.qPCRr2c, list(pairwise ~ Treatment), adjust = "tukey")
+#NO Significant diff between any
+
+
+```
+
+##Plot Cq
+```{r}
+
+plotR1c <- ggplot(qPCR_data, aes(x = Exp_run, y = Cq, fill = Treatment)) + 
+  geom_boxplot() +
+  scale_fill_manual(name = "Disease severity", values = c("#1F78B4", "orchid", "green4")) +
+  labs(x = "\nExperimental run", y = "\nQuantification cycle (Cq)\n") +
+      theme_bw() 
+
+
+# Save plot
+ggsave("qPCR_plot_Cq.png", plotR1c, 
+  width = 11,
+  height = 12,
+  units = "cm",
+  dpi = 600)
+
+```
+
+
